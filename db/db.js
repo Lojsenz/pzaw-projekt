@@ -4,15 +4,18 @@ const db = new Database('database.db');
 db.exec(`
   CREATE TABLE IF NOT EXISTS Users (
     id INTEGER PRIMARY KEY,
-    login VARCHAR NOT NULL,
+    login VARCHAR NOT NULL UNIQUE,
     password VARCHAR NOT NULL
   )
 `)
+
 const hash = bcrypt.hashSync(process.env.ADMIN_PASS, 10);
 const SetAdmin = db.prepare(
         `INSERT OR IGNORE INTO Users (login,password) VALUES (?,?)`
     );
+
 SetAdmin.run(process.env.ADMIN_LOGIN,hash);
+
 
 export function add(user,pass){
     const query = db.prepare(
@@ -28,6 +31,9 @@ export function login(user){
     return query.get(user);
     
 };
+
+
+
 
 db.exec(`CREATE TABLE IF NOT EXISTS Notes (
   id INTEGER PRIMARY KEY,

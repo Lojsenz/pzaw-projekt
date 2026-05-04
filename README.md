@@ -16,7 +16,11 @@ npm install
 
 ### 3. Skonfiguruj zmienne środowiskowe
 
-Utwórz plik `.env` w głównym folderze projektu:
+```bash
+npm run build
+```
+
+Poniżej znajduje sie szablon oraz opis pliku, który sie utworzy:
 
 ```env
 PORT=8000 - ustawienie protu na ktorym chcemy hostowac aplikacje

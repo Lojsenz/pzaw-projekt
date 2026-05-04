@@ -15,6 +15,11 @@ app.use(session({
     saveUninitialized: false
 }));
 
+function requireAuth(req, res, next) {
+    if (!req.session.userId) return res.redirect('/login');
+    next();
+}
+
 
 app.listen(PORT, ()=> {
     console.log(`http://localhost:${PORT}`);
@@ -36,7 +41,7 @@ app.post("/login",async (req,res)=>{
     const {user, pass} = req.body;
     let IsAdmin = false;
 
-        const row = login(user);
+        const row = await login(user);
     if (!row) return res.render("login", { error: 'Wrong username or password' });
 
     const match = await bcrypt.compare(pass,row.password);
@@ -55,51 +60,59 @@ app.post("/login",async (req,res)=>{
 app.post("/register",async (req,res)=>{
     const {user,pass} = req.body;
     const hash = await bcrypt.hash(pass,10);
-    if(login(user)){
+    if(await login(user)){
         return res.render("register", {error: 'User already exists'});
     }
-    add(user,hash);
+    await add(user,hash);
     res.redirect('/login');
     
 
 });
 
-app.get("/main_page",(req,res)=>{
-    
+app.get("/main_page", requireAuth, (req,res)=>{
     res.render("main_page",{user: req.session.user, isadmin: req.session.isadmin});
 });
 
-app.get("/main_page/notes",(req,res)=>{
-    const notes = getNotes(req.session.userId, req.session.isadmin)
+app.get("/main_page/notes", requireAuth, async (req,res)=>{
+    const notes = await getNotes(req.session.userId, req.session.isadmin)
     res.render("notes",{notes})
 });
 
-app.get("/main_page/notes/:id",(req,res)=>{
-    const note = getNoteById(req.params.id);
+app.get("/main_page/notes/:id", requireAuth, async (req,res)=>{
+    const note = await getNoteById(Number(req.params.id));
+    if (!note) return res.status(404).render("error", { message: 'Note not found' });
+    if (!req.session.isadmin && note.user_login !== req.session.userId) {
+        return res.status(403).render("error", { message: 'Access denied' });
+    }
     res.render("note", {note});
 });
 
-app.get("/main_page/add_note",(req,res)=>{
+app.get("/main_page/add_note", requireAuth, (req,res)=>{
     res.render("add_note");
 })
 
-app.post("/add_note",(req,res)=>{
+app.post("/add_note", requireAuth, async (req,res)=>{
     const {Title,Note} = req.body;
-    addNote(Title,Note,req.session.userId);
+    await addNote(Title,Note,req.session.userId);
     res.redirect("/main_page/notes");
 });
 
-app.get("/main_page/note",(req,res)=>{
+app.get("/main_page/note", requireAuth, (req,res)=>{
     res.render("note");
 });
 
 app.get("/logout",(req,res)=>{
-    req.session.destroy;
-    res.redirect("/login");
+    req.session.destroy(() => {
+        res.redirect("/login");
+    });
 });
 
-app.get("/main_page/notes/:id/delete",(req,res)=>{
-    deleteNote(req.params.id);
+app.get("/main_page/notes/:id/delete", requireAuth, async (req,res)=>{
+    const note = await getNoteById(Number(req.params.id));
+    if (!note) return res.status(404).render("error", { message: 'Note not found' });
+    if (!req.session.isadmin && note.user_login !== req.session.userId) {
+        return res.status(403).render("error", { message: 'Access denied' });
+    }
+    await deleteNote(Number(req.params.id));
     res.redirect("/main_page/notes");
-
 });

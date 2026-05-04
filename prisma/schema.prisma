@@ -1,0 +1,22 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Notes {
+  id         Int    @id @default(autoincrement())
+  user_login Int
+  Title      String
+  Note       String
+  Users      Users  @relation(fields: [user_login], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model Users {
+  id       Int     @id @default(autoincrement())
+  login    String  @unique(map: "sqlite_autoindex_Users_1")
+  password String
+  Notes    Notes[]
+}

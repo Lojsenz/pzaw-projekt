@@ -1,65 +1,41 @@
-import Database from 'better-sqlite3';
-import bcrypt from 'bcrypt';
-const db = new Database('database.db');
-db.exec(`
-  CREATE TABLE IF NOT EXISTS Users (
-    id INTEGER PRIMARY KEY,
-    login VARCHAR NOT NULL UNIQUE,
-    password VARCHAR NOT NULL
-  )
-`)
+import { PrismaClient } from "@prisma/client";
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
-const hash = bcrypt.hashSync(process.env.ADMIN_PASS, 10);
-const SetAdmin = db.prepare(
-        `INSERT OR IGNORE INTO Users (login,password) VALUES (?,?)`
-    );
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const dbPath = join(__dirname, "..", "database.db");
+const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
+const prisma = new PrismaClient({ adapter })
 
-SetAdmin.run(process.env.ADMIN_LOGIN,hash);
-
-
-export function add(user,pass){
-    const query = db.prepare(
-        `INSERT OR IGNORE INTO Users (login,password) VALUES (?,?)`
-    );
-    query.run(user,pass);
-};
-
-export function login(user){
-    const query = db.prepare(
-        `SELECT id,login,password FROM Users WHERE Users.login = ?`
-    );
-    return query.get(user);
-    
-};
-
-
-
-
-db.exec(`CREATE TABLE IF NOT EXISTS Notes (
-  id INTEGER PRIMARY KEY,
-  user_login INTEGER NOT NULL,
-  Title TEXT NOT NULL,
-  Note TEXT NOT NULL,
-  FOREIGN KEY (user_login) REFERENCES Users(id)
-)`)
-
-export function getNotes(userId, isAdmin){
-    if (isAdmin) {
-        return db.prepare(`SELECT id, Title FROM Notes`).all()
-    }
-    return db.prepare(`SELECT id, Title FROM Notes WHERE user_login = ?`).all(userId);
-};
-
-export function getNoteById(id){
-    return db.prepare(`SELECT * FROM Notes WHERE id = ?`).get(id);
+async function add(user, pass) {
+    await prisma.users.upsert({
+        where: {login: user},
+        update: {},
+        create: {login: user, password: pass},
+    })
 }
 
-export function addNote(Title, note,userId){
-    const query = db.prepare(`INSERT INTO Notes (Title,Note,user_login) VALUES (?,?,?)`);
-    query.run(Title,note, userId);
+async function login(user) {
+    return prisma.users.findUnique({ where: {login: user}})
+
 }
 
-export function deleteNote(NoteId){
-    const query = db.prepare(`DELETE FROM Notes Where id = ?`);
-    query.run(NoteId);
+async function getNotes(userId, isAdmin) {
+    if (isAdmin) return prisma.notes.findMany()
+    return prisma.notes.findMany({where: {user_login: userId}})
 }
+
+async function getNoteById(id) {
+    return prisma.notes.findUnique({where: {id}})
+}
+
+async function addNote(Title, note, userId) {
+    return prisma.notes.create({data: {Title, Note: note, user_login: userId}})
+}
+
+async function deleteNote(NoteId) {
+    return prisma.notes.delete({where: {id: NoteId}})
+}
+
+export {add, login, getNotes, getNoteById, addNote, deleteNote}
